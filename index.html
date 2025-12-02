@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gửi người thương</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+        canvas { position: absolute; top: 0; left: 0; z-index: 1; }
+        #image-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+        .floating-image { position: absolute; width: 80px; height: auto; border-radius: 10px; box-shadow: 0 0 10px rgba(255, 182, 193, 0.6); opacity: 0; animation: floatUp 10s linear infinite; }
+        @keyframes floatUp { 0% { transform: translateY(100vh) scale(0.5); opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { transform: translateY(-10vh) scale(1); opacity: 0; } }
+        
+        #ui-layer { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10; background: rgba(255, 255, 255, 0.95); padding: 30px; border-radius: 20px; width: 350px; box-shadow: 0 0 20px rgba(255, 105, 180, 0.6); text-align: center; display: flex; flex-direction: column; gap: 15px; }
+        #ui-layer.hidden { display: none; }
+        h2 { color: #ff69b4; margin: 0 0 10px 0; }
+        input { padding: 12px; border: 2px solid #ffb6c1; border-radius: 8px; outline: none; width: 90%; font-size: 14px; }
+        input:focus { border-color: #ff69b4; }
+        .btn-group { display: flex; gap: 10px; justify-content: center; }
+        button { padding: 12px; background: #ff69b4; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; transition: background 0.3s; flex: 1; }
+        button:hover { background: #ff1493; }
+        button.secondary { background: #6c757d; }
+        button.secondary:hover { background: #5a6268; }
+        #settings-btn { position: absolute; top: 20px; right: 20px; z-index: 11; background: rgba(255,255,255,0.2); color: white; border: none; padding: 10px; border-radius: 50%; cursor: pointer; font-size: 20px; display: none; }
+        #share-info { font-size: 12px; color: #555; margin-top: 5px; word-break: break-all; display: none;}
+    </style>
+</head>
+<body>
+    <canvas id="heartCanvas"></canvas>
+    <div id="image-container"></div>
+    <button id="settings-btn" onclick="toggleUI()">⚙️</button>
+
+    <div id="ui-layer">
+        <h2>💖 Tạo trái tim 💖</h2>
+        <input type="text" id="TextInput" placeholder="Nội dung (VD: Anh Yêu Em)" value="Anh Yêu Em">
+        <input type="text" id="ImagesInput" placeholder="Link ảnh (cách nhau dấu phẩy)" value="https://cdn-icons-png.flaticon.com/512/2190/2190552.png">
+        
+        <div class="btn-group">
+            <button onclick="startEffect(false)">Chạy thử</button>
+            <button class="secondary" onclick="generateLink()">Tạo Link Tặng</button>
+        </div>
+        <div id="share-info">Link đã copy vào bộ nhớ đệm!</div>
+    </div>
+
+    <script>
+        const CONFIG = { particleCount: 1500, text: "I Love You", images: [] };
+        const canvas = document.getElementById('heartCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        let particles = [];
+        let imageInterval;
+
+        function onResize() { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; }
+        window.addEventListener('resize', onResize);
+        onResize();
+
+        function getHeartPoint(t) {
+            const x = 16 * Math.pow(Math.sin(t), 3);
+            const y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+            return { x, y };
+        }
+
+        class Particle {
+            constructor() { this.reset(); }
+            reset() {
+                this.x = Math.random() * width; this.y = Math.random() * height;
+                let t = Math.random() * Math.PI * 2; let heartPos = getHeartPoint(t);
+                const scale = Math.min(width, height) / 40; 
+                this.targetX = width / 2 + heartPos.x * scale; this.targetY = height / 2 + heartPos.y * scale;
+                this.velocity = Math.random() * 0.05 + 0.02; this.size = Math.random() * 2 + 1; this.opacity = 0;
+            }
+            update() {
+                this.x += (this.targetX - this.x) * this.velocity; this.y += (this.targetY - this.y) * this.velocity;
+                if (Math.abs(this.targetX - this.x) < 5) this.opacity = Math.random();
+                else this.opacity = Math.min(this.opacity + 0.01, 1);
+            }
+            draw() { ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fillStyle = `rgba(255, 105, 180, ${this.opacity})`; ctx.fill(); }
+        }
+
+        function initParticles() { particles = []; for (let i = 0; i < CONFIG.particleCount; i++) particles.push(new Particle()); }
+
+        function drawText() {
+            ctx.fillStyle = "white"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
+            ctx.shadowColor = "#ff69b4"; ctx.shadowBlur = 20; ctx.fillText(CONFIG.text, width / 2, height / 2); ctx.shadowBlur = 0;
+        }
+
+        function animate() {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.1)"; ctx.fillRect(0, 0, width, height);
+            particles.forEach(p => { p.update(); p.draw(); });
+            drawText();
+            requestAnimationFrame(animate);
+        }
+
+        function startFloatingImages() {
+            const container = document.getElementById('image-container'); container.innerHTML = '';
+            if (imageInterval) clearInterval(imageInterval);
+            if (CONFIG.images.length === 0) return;
+            imageInterval = setInterval(() => {
+                const imgUrl = CONFIG.images[Math.floor(Math.random() * CONFIG.images.length)];
+                if (!imgUrl) return;
+                const img = document.createElement('img'); img.src = imgUrl.trim(); img.className = 'floating-image';
+                img.style.left = Math.random() * 90 + '%'; img.style.animationDuration = (Math.random() * 5 + 5) + 's';
+                container.appendChild(img);
+                setTimeout(() => img.remove(), 10000);
+            }, 800);
+        }
+
+        function toggleUI() { document.getElementById('ui-layer').classList.toggle('hidden'); }
+
+        function startEffect(fromUrl = false) {
+            if (!fromUrl) {
+                CONFIG.text = document.getElementById('TextInput').value || "I Love You";
+                CONFIG.images = document.getElementById('ImagesInput').value.split(',').filter(l => l.trim());
+            }
+            document.getElementById('ui-layer').classList.add('hidden');
+            if(!fromUrl) document.getElementById('settings-btn').style.display = 'block';
+            initParticles(); startFloatingImages();
+        }
+
+        function generateLink() {
+            const text = encodeURIComponent(document.getElementById('TextInput').value);
+            const imgs = encodeURIComponent(document.getElementById('ImagesInput').value);
+            const url = `${window.location.origin}${window.location.pathname}?content=${text}&imgs=${imgs}`;
+            navigator.clipboard.writeText(url).then(() => {
+                const info = document.getElementById('share-info');
+                info.style.display = 'block';
+                info.innerText = "Đã copy link! Gửi cho người ấy ngay: " + url;
+            });
+        }
+
+        // Logic tự động chạy nếu có Link
+        window.onload = () => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('content')) {
+                CONFIG.text = decodeURIComponent(params.get('content'));
+                if (params.has('imgs')) CONFIG.images = decodeURIComponent(params.get('imgs')).split(',');
+                startEffect(true);
+            } else {
+                initParticles(); // Chạy nền
+            }
+            animate();
+        };
+    </script>
+</body>
+</html>
